@@ -1,0 +1,134 @@
+---
+title: "código_relatorio1"
+author: "Nicoly Eduarda Lourenço | Bruce Trevisan | Isabella Ferreira Dias"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r lendo_dados, echo=TRUE, message=FALSE, warning=FALSE}
+dados_mega <- read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSsvVMXknUrUUx99Q53sCzTg1-XhTOWZL3M42ukpL1wuNWrE8ctejnX9bG93WMoMA/pub?output=csv") #lê a planilha e a guarda dentro do objeto "dados_mega"
+library(ggplot2)
+library(kableExtra)
+```
+
+```{r parametros, echo=TRUE, message=FALSE, warning=FALSE}
+
+numeros_sorteados <- dados_mega[, 3:8] # filtrando as colunas com os números sorteados na planilha
+
+freq_obs <- table(unlist(numeros_sorteados)) # aqui estou criando uma tabela de frequência de numeros_sorteados e, em seguida, transformando a lista em vetor e contando a ocorrência de cada número.
+
+n_sorteios <- nrow(numeros_sorteados) # número de sorteios realizados, por linhas da tabela numeros_sorteados
+n_simulacoes <- 10000 
+total_bolas <- 60
+bolas_por_sorteio <- 6
+total_observacoes <- n_sorteios * bolas_por_sorteio
+esperado <- total_observacoes/total_bolas  # frequência esperada para cada número se a distribuição for perfeitamente uniforme
+
+W_obs <- sum(abs(freq_obs - esperado)) # medindo o desvio entre os dados observados e o esperado
+```
+
+
+```{r simulacao, echo=TRUE, message=FALSE, warning=FALSE}
+# Simulação de Monte Carlo sob H0:
+set.seed(123)
+W_sim <- replicate(n_simulacoes, {
+  freq_sim <- rep(0, total_bolas) # criando um vetor de tamanho 60 e frequencias zerado
+  for (i in 1:n_sorteios) { # em cada sorteio simulado, vai de i de 1 até n_sorteios
+    bolas <- sample(1:60, 6, replace = FALSE) # sorteia 6 numeros entre 1 à 60, sem repetição
+    freq_sim[bolas] <- freq_sim[bolas] + 1
+  }
+  sum(abs(freq_sim - esperado)) # calculando a estatística W para os numeros da simulação
+})
+
+```
+
+```{r pvalor, echo=TRUE, message=FALSE, warning=FALSE}
+
+p_valor <- mean(W_sim >= W_obs) # calculando o p-valor
+
+#pvalor pequeno: Evidência contra a H0
+
+#pvalor grande: Não há evidências para rejeitar a H0.
+
+```
+
+```{r IC, echo=TRUE, message=FALSE, warning=FALSE}
+# Intervalo de confiança para o p-valor
+# É um ensaio de Bernoulli com sucesso se, e somente se, W_sim > W_obs
+z <- qnorm(0.975)  # z para 95%
+erro_padrao <- sqrt(p_valor * (1 - p_valor) / n_simulacoes)
+IC_inf <- max(0, p_valor - z * erro_padrao)
+IC_sup <- min(1, p_valor + z * erro_padrao)
+
+```
+
+```{r resultados, echo=TRUE, message=FALSE, warning=FALSE}
+Sys.setlocale(locale = "Portuguese_Brazil.1252") # para não dar erro por conta de acentos e cacarteres especiais
+cat("Estatística W observada:", round(W_obs, 2), "\n")
+cat("p-valor estimado:", round(p_valor, 4), "\n")
+cat("Intervalo de confiança 95% para o p-valor: [", round(IC_inf, 4), ",", round(IC_sup, 4), "]\n\n")
+```
+
+```{r conclusao, echo=TRUE, message=FALSE, warning=FALSE}
+Sys.setlocale(locale = "Portuguese_Brazil.1252")
+if(p_valor < 0.05) {
+  cat("→ Há evidências estatísticas (p < 0.05) para rejeitar a hipótese nula.\n")
+  cat("Conclusão: Os números NÃO parecem estar sendo sorteados de forma uniforme.\n")
+} else {
+  cat("Não há evidências suficientes (p ≥ 0.05) para rejeitar a hipótese nula.\n")
+  cat("Conclusão: Os números parecem estar sendo sorteados de forma uniforme.\n")
+}
+
+```
+
+```{r histograma_distribuicao_W, echo=TRUE, message=FALSE, warning=FALSE}
+Sys.setlocale(locale = "Portuguese_Brazil.1252")# para não dar erro por conta de acentos e cacarteres especiais
+hist(W_sim,
+     breaks = 30,
+     col = "#4B644B",
+     main = "Distribuição de W nas Simulações Monte Carlo",
+     xlab = "W",
+     ylab = "Frequência")
+
+abline(v = W_obs, 
+       col = "red", 
+       lwd = 2, 
+       lty = 2)
+legend("topright", 
+       legend = paste("W observado =", round(W_obs, 2)), 
+       col = "red", 
+       lwd = 2, 
+       lty = 2)
+
+```
+
+```{r tabelas_estatisticas, echo=TRUE, message=FALSE, warning=FALSE}
+Sys.setlocale(locale = "Portuguese_Brazil.1252") # para não dar erro por conta de acentos e cacarteres especiais
+library(kableExtra)
+
+tabela <- data.frame(
+  Estatística = c("W Observado", "P-valor", "IC Inferior e Superior"),
+  Valor = c(round(W_obs, 2), 
+           round(p_valor, 4),
+           paste0("(", round(IC_inf, 4), ", ", round(IC_sup, 4), ")")
+))
+
+kable(tabela) %>%
+  kable_styling(bootstrap_options = c("bordered","striped","hover"),
+                full_width = TRUE)
+```
+
+```{r distribuicao_numeros_sorteados, echo=TRUE, message=FALSE, warning=FALSE, fig.height= 5}
+Sys.setlocale(locale = "Portuguese_Brazil.1252")
+
+freq <- as.numeric(freq_obs)
+cores <- ifelse(freq > esperado, "#4B644B", "#6C8E68")
+
+bp <- barplot(freq,
+        col = cores,
+        ylim = c(0,350),
+        main = "Frequência dos Números Sorteados na Mega-Sena")
+
+axis(1, at = bp, labels = 1:60, cex.axis = 0.7)
+
+```
